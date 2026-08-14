@@ -24,14 +24,14 @@ const listStashResult = z.object({
   files: z.array(z.object({ relPath: z.string(), name: z.string(), size: z.number() })),
 })
 
-const cwdParameter = stringParameter('cwd', 'dsh-attachments#Cwd')
-const sessionParameter = stringParameter('sessionId', 'dsh-attachments#SessionId')
+const cwdParameter = stringParameter('cwd', 'dsh-attachment#Cwd')
+const sessionParameter = stringParameter('sessionId', 'dsh-attachment#SessionId')
 
 /** 构造 fileStash 命名空间的全部调用描述符。 */
 export function buildDescriptors(): readonly InvocationDescriptorLike[] {
   return [
     {
-      id: 'dsh-attachments#fileStash/stashFile',
+      id: 'dsh-attachment#fileStash/stashFile',
       service: 'fileStash',
       namespace: 'fileStash',
       method: 'stashFile',
@@ -39,13 +39,13 @@ export function buildDescriptors(): readonly InvocationDescriptorLike[] {
       parameters: [
         cwdParameter,
         sessionParameter,
-        stringParameter('name', 'dsh-attachments#Name'),
-        stringParameter('dataBase64', 'dsh-attachments#Data'),
+        stringParameter('name', 'dsh-attachment#Name'),
+        stringParameter('dataBase64', 'dsh-attachment#Data'),
       ],
-      result: resultCodec('dsh-attachments#StashResult', stashResult),
+      result: resultCodec('dsh-attachment#StashResult', stashResult),
     },
     {
-      id: 'dsh-attachments#fileStash/removeStash',
+      id: 'dsh-attachment#fileStash/removeStash',
       service: 'fileStash',
       namespace: 'fileStash',
       method: 'removeStash',
@@ -53,12 +53,12 @@ export function buildDescriptors(): readonly InvocationDescriptorLike[] {
       parameters: [
         cwdParameter,
         sessionParameter,
-        stringParameter('relPath', 'dsh-attachments#RelPath'),
+        stringParameter('relPath', 'dsh-attachment#RelPath'),
       ],
-      result: resultCodec('dsh-attachments#RemoveStashResult', removeStashResult),
+      result: resultCodec('dsh-attachment#RemoveStashResult', removeStashResult),
     },
     {
-      id: 'dsh-attachments#fileStash/restageFile',
+      id: 'dsh-attachment#fileStash/restageFile',
       service: 'fileStash',
       namespace: 'fileStash',
       method: 'restageFile',
@@ -66,36 +66,36 @@ export function buildDescriptors(): readonly InvocationDescriptorLike[] {
       parameters: [
         cwdParameter,
         sessionParameter,
-        stringParameter('relPath', 'dsh-attachments#RelPath'),
+        stringParameter('relPath', 'dsh-attachment#RelPath'),
       ],
-      result: resultCodec('dsh-attachments#StashResult', stashResult),
+      result: resultCodec('dsh-attachment#StashResult', stashResult),
     },
     {
-      id: 'dsh-attachments#fileStash/clearStash',
+      id: 'dsh-attachment#fileStash/clearStash',
       service: 'fileStash',
       namespace: 'fileStash',
       method: 'clearStash',
       invocation: { kind: 'direct' },
       parameters: [cwdParameter, sessionParameter],
-      result: resultCodec('dsh-attachments#RemoveStashResult', removeStashResult),
+      result: resultCodec('dsh-attachment#RemoveStashResult', removeStashResult),
     },
     {
-      id: 'dsh-attachments#fileStash/readStash',
+      id: 'dsh-attachment#fileStash/readStash',
       service: 'fileStash',
       namespace: 'fileStash',
       method: 'readStash',
       invocation: { kind: 'direct' },
-      parameters: [cwdParameter, stringParameter('relPath', 'dsh-attachments#RelPath')],
-      result: resultCodec('dsh-attachments#ReadStashResult', readStashResult),
+      parameters: [cwdParameter, stringParameter('relPath', 'dsh-attachment#RelPath')],
+      result: resultCodec('dsh-attachment#ReadStashResult', readStashResult),
     },
     {
-      id: 'dsh-attachments#fileStash/listStash',
+      id: 'dsh-attachment#fileStash/listStash',
       service: 'fileStash',
       namespace: 'fileStash',
       method: 'listStash',
       invocation: { kind: 'direct' },
       parameters: [sessionParameter],
-      result: resultCodec('dsh-attachments#ListStashResult', listStashResult),
+      result: resultCodec('dsh-attachment#ListStashResult', listStashResult),
     },
   ]
 }

@@ -1,6 +1,6 @@
 [简体中文](README.zh-CN.md) | English
 
-# dsh-attachments
+# dsh-attachment
 
 A third-party attachment plugin for DeepSeek Harness (dsh): **bring any file into the conversation, zero type rejection**.
 
@@ -22,17 +22,17 @@ Stashed files render as cards above the composer (`conversation.input.dock`): ex
 
 - **Host half** (`lib/index.js`): `AttachmentsGateway` extends `TypertRemoteService` and serves the `fileStash` namespace with **six RPCs**: `stashFile`, `removeStash`, `restageFile`, `clearStash`, `readStash`, `listStash`. Path safety: writes only under `<cwd>/.dsh/uploads/`, file names are sanitized and prefixed with a timestamp, and removal/preview paths are resolved and prefix-checked. Because third-party dual-copy setups are blind to SRC discovery, the plugin also registers a weak (src-json) manifest into the host typert registry.
 - **Browser half** (`lib/client.js`): hand-written strict zod descriptors mounted via `$mount`, exposing `ctx.remote.fileStash`; the button registers `conversation.input.left`, the card bar registers `conversation.input.dock`; full-window drag/paste routes through the "current composer" context captured by the store. The host folds pending attachments into the next `agent/pre-step` decision.
-- **Localization**: full zh/en dictionaries registered through the harness locale service (namespace `dsh-attachments`). Slot components receive the standard reactive `t` seat; window-level modules (dropzone overlay, preview, history cards, intake toasts) translate at call time via a namespace-bound `t`. Host-side RPC failures carry a stable dot-code plus `{name}` params (e.g. `stash.err.tooLarge` with `{max}`) alongside a Chinese fallback message — the client renders the localized text when its dictionary has the code, otherwise the fallback. The `📎 … → path` reference-line format injected into the model's history is protocol text and is never localized.
+- **Localization**: full zh/en dictionaries registered through the harness locale service (namespace `dsh-attachment`). Slot components receive the standard reactive `t` seat; window-level modules (dropzone overlay, preview, history cards, intake toasts) translate at call time via a namespace-bound `t`. Host-side RPC failures carry a stable dot-code plus `{name}` params (e.g. `stash.err.tooLarge` with `{max}`) alongside a Chinese fallback message — the client renders the localized text when its dictionary has the code, otherwise the fallback. The `📎 … → path` reference-line format injected into the model's history is protocol text and is never localized.
 
 ## Install
 
 ```sh
-dsh plugin --profile web add dsh-attachments
+dsh plugin --profile web add dsh-attachment
 ```
 
-Or from GitHub: `dsh plugin --profile web add github:CocoSgt/dsh-attachments`.
+Or from GitHub: `dsh plugin --profile web add github:CocoSgt/dsh-attachment`.
 
-Restart `dsh web` afterwards. Uninstall: `dsh plugin --profile web remove dsh-attachments`.
+Restart `dsh web` afterwards. Uninstall: `dsh plugin --profile web remove dsh-attachment`.
 
 ## Known limitations
 

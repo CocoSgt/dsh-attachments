@@ -35,7 +35,7 @@ function hasFiles(transfer: DataTransfer | null): boolean {
 export function installDropzone(env: DropzoneEnv): () => void {
   const overlay = document.createElement('div')
   overlay.className = 'dat-overlay'
-  overlay.dataset.plugin = 'dsh-attachments'
+  overlay.dataset.plugin = 'dsh-attachment'
   const card = document.createElement('div')
   card.className = 'dat-overlay-card'
   const icons = document.createElement('div')

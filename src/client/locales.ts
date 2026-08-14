@@ -1,5 +1,5 @@
 /**
- * zh/en 双语词典(命名空间 'dsh-attachments')。
+ * zh/en 双语词典(命名空间 'dsh-attachment')。
  *
  * 复刻官方模式(ui-settings-general/src/client/locales.ts):zh 是键集
  * 真相源,en 按同一键集校验完整。键覆盖两类文案:
@@ -16,7 +16,7 @@
 import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 
 /** 本插件拥有的词典命名空间。 */
-export const NS = 'dsh-attachments'
+export const NS = 'dsh-attachment'
 
 /** 简体中文词典(键集真相源)。 */
 export const zh = {
@@ -114,7 +114,7 @@ export const en = {
 // props 的 t 席位由此获得类型(与官方插件同一 declare-merge 模式)。
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    'dsh-attachments': Key
+    'dsh-attachment': Key
   }
 }
 

@@ -1,8 +1,8 @@
-# dsh-attachments 的 bundle patch:插入本插件的一行。
+# dsh-attachment 的 bundle patch:插入本插件的一行。
 # 这一行的双重身份:
 #   1) host 侧 —— Loader 按行加载 lib/index.js(附件落盘网关);
 #   2) 浏览器侧 —— client-modules 扫描到此行的包声明了 dsh.client 后,
 #      把 lib/client.js 写入 window.__DSH_BOOT__ 启动图。
 - insert:
     - id: attachments
-      name: 'dsh-attachments'
+      name: 'dsh-attachment'

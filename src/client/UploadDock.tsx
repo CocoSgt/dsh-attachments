@@ -167,7 +167,7 @@ export function UploadDock({ sessionId, inputActions, store, api, sessions, open
     }
     const element = hostRef.current ?? document.createElement('div')
     hostRef.current = element
-    element.dataset.plugin = 'dsh-attachments'
+    element.dataset.plugin = 'dsh-attachment'
     placeHost(composer, element)
     setHost(element)
     let scheduled = false
@@ -224,7 +224,7 @@ export function UploadDock({ sessionId, inputActions, store, api, sessions, open
   ))
 
   return (
-    <div ref={rootRef} style={{ display: 'contents' }} data-plugin="dsh-attachments">
+    <div ref={rootRef} style={{ display: 'contents' }} data-plugin="dsh-attachment">
       {files.length === 0
         ? null
         : host !== undefined

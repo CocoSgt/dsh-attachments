@@ -1,5 +1,5 @@
 /**
- * 附件卡片与拖放遮罩样式:<style data-plugin="dsh-attachments"> 注入,
+ * 附件卡片与拖放遮罩样式:<style data-plugin="dsh-attachment"> 注入,
  * dat- 前缀。颜色走 --dsw-alias-* 设计令牌,深浅色随宿主主题自动适配。
  * 卡片形态对齐主流平台(Claude/DeepSeek):图标块 + 文件名 + 大小 + ✕。
  */
@@ -285,9 +285,9 @@ const CSS = `
 /** 幂等注入插件样式表。 */
 export function ensureStyles(): void {
   if (typeof document === 'undefined') return
-  if (document.querySelector('style[data-plugin="dsh-attachments"]') !== null) return
+  if (document.querySelector('style[data-plugin="dsh-attachment"]') !== null) return
   const tag = document.createElement('style')
-  tag.dataset.plugin = 'dsh-attachments'
+  tag.dataset.plugin = 'dsh-attachment'
   tag.textContent = CSS
   document.head.appendChild(tag)
 }

@@ -1,5 +1,5 @@
 /**
- * dsh-attachments 宿主端:fileStash 落盘网关 + 发送时注入。
+ * dsh-attachment 宿主端:fileStash 落盘网关 + 发送时注入。
  *
  * 附件哲学:零类型拒绝。图片走浏览器端原生附件管线(不经过本网关);
  * 其余一切文件由本网关落盘到会话工作区 `<cwd>/.dsh/uploads/`。
@@ -267,7 +267,7 @@ function jsonParameter(name: string): WeakInvocation['parameters'][number] {
 
 function invocation(method: string, parameters: readonly string[]): WeakInvocation {
   return {
-    id: `dsh-attachments#fileStash/${method}`,
+    id: `dsh-attachment#fileStash/${method}`,
     service: 'fileStash',
     namespace: 'fileStash',
     method,
@@ -278,7 +278,7 @@ function invocation(method: string, parameters: readonly string[]): WeakInvocati
 }
 
 const TYPERT_MANIFEST = {
-  package: 'dsh-attachments',
+  package: 'dsh-attachment',
   face: 'host',
   schemas: [],
   model: { services: [], events: [], objects: [] },
