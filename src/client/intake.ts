@@ -1,21 +1,21 @@
 /**
- * 文件分诊与入草稿的核心逻辑（浏览器半体）。
+ * 附件分诊(浏览器半体)——万物皆文件,零类型拒绝,草稿零污染。
  *
- * dsh 的发送管线只接受两种内容块：text 与 image（base64）。因此附件的
- * 归宿由类型决定：
- *   - 图片（png/jpeg/webp/gif）→ ConversationController.createDraftImages
- *     注册进原生附件管线，缩略图由内置 AttachmentRail 展示 —— 和粘贴
- *     图片完全同一条路径；
- *   - 文本类文件 → 读出内容，以带文件名标注的围栏代码块追加进输入框
- *     草稿（这是无提交钩子前提下唯一合法的发送通道）；
- *   - 其余二进制 → 通过会话输入面板的 notice 通道明确拒绝。
+ * **所有文件(含图片)统一落盘**进会话工作区并按会话暂存,composer 内
+ * 出现可撤回的卡片;发送时宿主把路径清单注入模型请求。图片不再走宿主
+ * 原生视觉管线——移动/整理类任务不需要模型看见内容;需要看时,视觉
+ * 模型自己调 read_image(harness 原生工具,按路径读图并产出图像块),
+ * 非视觉模型也不再被「模型不支持图片」堵住发送。图片卡带本地缩略图预览。
+ *
+ * 失败(RPC 错误、超传输上限、会话无工作区)通过会话输入面板的 notice
+ * 通道逐文件报告,不静默。
  */
 import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
-// 类型边界：ConversationController（含 createDraftImages 等具体方法）与
-// Context 服务合并。仅类型导入，编译后全部擦除。
 import type { ConversationController, DraftAttachmentId } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { AttachmentsCalls, SessionsFace } from './types.js'
+import type { UploadsStore } from './uploads-store.js'
 
-/** 输入机公共动作面（ui-conversation 会话标准件的 inputActions）。 */
+/** 输入机公共动作面(ui-conversation 会话标准件的 inputActions)。 */
 export interface InputActionsFace {
   setDraft(text: string): void
   addImages(ids: readonly DraftAttachmentId[]): boolean
@@ -23,126 +23,66 @@ export interface InputActionsFace {
   pruneImages(ids: readonly DraftAttachmentId[]): void
 }
 
-/** createDraftImages 接受的图片 MIME 白名单（与其内部 imageMediaType 一致）。 */
-const IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
-
-/** 按扩展名认定为文本的文件（MIME 缺失或不可信时的兜底）。 */
-const TEXT_EXTENSIONS = new Set([
-  'txt', 'md', 'markdown', 'mdx', 'json', 'jsonc', 'json5', 'yaml', 'yml', 'toml',
-  'ini', 'cfg', 'conf', 'csv', 'tsv', 'log', 'xml', 'html', 'htm', 'css', 'scss',
-  'less', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'mts', 'cts', 'tsx', 'py', 'pyi', 'rb',
-  'go', 'rs', 'java', 'kt', 'kts', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'swift',
-  'sh', 'bash', 'zsh', 'fish', 'ps1', 'sql', 'graphql', 'gql', 'vue', 'svelte',
-  'astro', 'env', 'gitignore', 'dockerignore', 'editorconfig', 'svg',
-])
-
-/** 扩展名 → 围栏代码块语言标注。 */
-const FENCE_LANG = new Map([
-  ['md', 'markdown'], ['markdown', 'markdown'], ['mdx', 'markdown'],
-  ['json', 'json'], ['jsonc', 'json'], ['json5', 'json'],
-  ['yaml', 'yaml'], ['yml', 'yaml'], ['toml', 'toml'], ['ini', 'ini'],
-  ['csv', 'csv'], ['tsv', 'csv'], ['log', 'log'], ['xml', 'xml'],
-  ['html', 'html'], ['htm', 'html'], ['css', 'css'], ['scss', 'scss'], ['less', 'less'],
-  ['js', 'javascript'], ['mjs', 'javascript'], ['cjs', 'javascript'], ['jsx', 'jsx'],
-  ['ts', 'typescript'], ['mts', 'typescript'], ['cts', 'typescript'], ['tsx', 'tsx'],
-  ['py', 'python'], ['pyi', 'python'], ['rb', 'ruby'], ['go', 'go'], ['rs', 'rust'],
-  ['java', 'java'], ['kt', 'kotlin'], ['kts', 'kotlin'], ['c', 'c'], ['h', 'c'],
-  ['cpp', 'cpp'], ['hpp', 'cpp'], ['cs', 'csharp'], ['php', 'php'], ['swift', 'swift'],
-  ['sh', 'bash'], ['bash', 'bash'], ['zsh', 'bash'], ['sql', 'sql'],
-  ['graphql', 'graphql'], ['gql', 'graphql'], ['vue', 'vue'], ['svelte', 'svelte'],
-  ['svg', 'xml'],
-])
-
-/** 单个文本文件内联进草稿的大小上限；超出部分截断并标注。 */
-const MAX_TEXT_BYTES = 256 * 1024
-
-/** 一次批量选择里最多内联的文本文件数；超出部分拒绝并提示。 */
-const MAX_TEXT_FILES_PER_BATCH = 8
-
-/** 一个待处理文件的分诊结果。 */
-type Verdict =
-  | { kind: 'image'; file: File }
-  | { kind: 'text'; file: File }
-  | { kind: 'reject'; file: File; reason: string }
-
-/** 判定一个浏览器文件的归宿。 */
-function classify(file: File): Verdict {
-  const type = (file.type ?? '').toLowerCase()
-  if (IMAGE_MIME.has(type)) return { kind: 'image', file }
-  if (file.name.toLowerCase().endsWith('.svg')) return { kind: 'text', file }
-  if (type.startsWith('text/')) return { kind: 'text', file }
-  if (/^application\/(json|xml|yaml|toml|x-yaml|javascript|sql)/.test(type)) return { kind: 'text', file }
-  if (type === '') {
-    // 无 MIME（常见于某些来源的本地文件）时按扩展名兜底
-    if (extensionOf(file.name) !== '') return { kind: 'text', file }
-    return { kind: 'reject', file, reason: 'unknown' }
-  }
-  if (extensionOf(file.name) !== '' && TEXT_EXTENSIONS.has(extensionOf(file.name))) return { kind: 'text', file }
-  return { kind: 'reject', file, reason: 'binary' }
-}
-
-/** 小写扩展名（不含点；无扩展名为空串）。 */
-function extensionOf(name: string): string {
-  const dot = name.lastIndexOf('.')
-  return dot < 0 ? '' : name.slice(dot + 1).toLowerCase()
-}
+/** 一次批量落盘的文件数上限(误操作保险,不是类型限制)。 */
+const MAX_FILES_PER_BATCH = 30
 
 /** 人类可读的大小。 */
-function formatSize(bytes: number): string {
+export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-/** 读取一个文本文件为（可能截断的）内容。 */
-async function readText(file: File): Promise<{ content: string; truncated: boolean }> {
-  const raw = await file.text()
-  if (raw.length <= MAX_TEXT_CHARS) return { content: raw, truncated: false }
-  return { content: raw.slice(0, MAX_TEXT_CHARS), truncated: true }
+/** 是否图片(仅用于生成本地预览,不影响落位路径)。 */
+function isImage(file: File): boolean {
+  return (file.type ?? '').toLowerCase().startsWith('image/')
 }
 
-/** 字符数上限（按 UTF-16 码元计，约等于 256KB ASCII）。 */
-const MAX_TEXT_CHARS = MAX_TEXT_BYTES
-
-/** 把一批文本文件渲染为追加进草稿的标注块。 */
-async function renderTextBlock(files: readonly File[], zh: boolean): Promise<string> {
-  const parts: string[] = []
-  for (const file of files) {
-    const { content, truncated } = await readText(file)
-    const lang = FENCE_LANG.get(extensionOf(file.name)) ?? ''
-    const lines = content.split('\n').length
-    const notes: string[] = [formatSize(file.size), `${lines} ${zh ? '行' : 'lines'}`]
-    if (truncated) notes.push(zh ? `已截断至 ${formatSize(MAX_TEXT_BYTES)}` : `truncated to ${formatSize(MAX_TEXT_BYTES)}`)
-    const header = `${zh ? '【文件' : '[File'}: ${file.name} | ${notes.join(' | ')}${zh ? '】' : ']'}`
-    parts.push(`${header}\n\`\`\`${lang}\n${content}\n\`\`\`\n`)
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  const CHUNK = 0x8000
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
   }
-  return parts.join('\n')
+  return btoa(binary)
 }
 
-/** 一次 intake 的执行摘要（供调试/日志）。 */
+/** 一次 intake 的执行摘要(供调试/日志)。 */
 export interface IntakeReport {
-  imagesAdded: number
-  textFilesInlined: number
-  rejected: readonly { name: string; reason: string }[]
+  filesStashed: number
+  failed: readonly { name: string; reason: string }[]
+}
+
+/** intake 的运行依赖(client/index.ts 组装后闭包传入)。 */
+export interface IntakeEnv {
+  readonly ctx: ClientContext
+  readonly sessions: SessionsFace
+  readonly api: () => AttachmentsCalls | undefined
+  readonly store: UploadsStore
 }
 
 /**
- * 处理一批用户选择的文件：图片入附件管线、文本入草稿、其余拒绝。
- * 全部落位后按需通过会话 notice 通道反馈拒绝与错误。
+ * 处理一批用户带来的文件:图片入原生附件管线,其余一切落盘暂存成卡片。
+ * @param env - 组装期闭包的运行依赖。
+ * @param sessionId - 目标会话。
+ * @param files - 用户选择/拖入/粘贴的文件。
+ * @param inputActions - 输入机动作面(图片落位需要)。
+ * @returns 执行摘要。
  */
 export async function runIntake(
-  ctx: ClientContext,
+  env: IntakeEnv,
   sessionId: SessionId,
   files: readonly File[],
-  inputActions: InputActionsFace | undefined,
-  currentDraft: string,
+  _inputActions: InputActionsFace | undefined,
 ): Promise<IntakeReport> {
+  const { ctx, sessions, store } = env
   const zh = navigator.language.toLowerCase().startsWith('zh')
-  const rejected: { name: string; reason: string }[] = []
-  const report: IntakeReport = { imagesAdded: 0, textFilesInlined: 0, rejected }
+  const failed: { name: string; reason: string }[] = []
+  const report: IntakeReport = { filesStashed: 0, failed }
   const conversation = ctx.get('conversation') as ConversationController | undefined
 
-  /** 会话输入面板的 notice（服务缺失时静默降级为 console）。 */
   const notify = (level: 'info' | 'error', text: string): void => {
     if (conversation !== undefined) {
       const actx = ctx.sessions.scope(sessionId)
@@ -151,64 +91,95 @@ export async function runIntake(
         return
       }
     }
-    console[level === 'error' ? 'error' : 'log'](`[dsh-file-upload] ${text}`)
+    console[level === 'error' ? 'error' : 'log'](`[dsh-attachments] ${text}`)
   }
 
-  const images: File[] = []
-  const texts: File[] = []
-  for (const file of files) {
-    const verdict = classify(file)
-    if (verdict.kind === 'image') images.push(verdict.file)
-    else if (verdict.kind === 'text') texts.push(verdict.file)
-    else rejected.push({ name: verdict.file.name, reason: verdict.reason })
-  }
-
-  // 图片：走原生附件管线（与内置粘贴路径完全一致）
-  if (images.length > 0 && conversation !== undefined && inputActions !== undefined) {
-    try {
-      const drafts = conversation.createDraftImages(images)
-      if (inputActions.addImages(drafts.map(draft => draft.id))) {
-        report.imagesAdded = drafts.length
-      } else {
-        conversation.releaseDraftImages(drafts)
-        notify('error', zh
-          ? `图片未加入：当前输入阶段不接受附件（可能已超出单条消息的图片上限）`
-          : `Images not added: the composer refused attachments (image-per-message limit may be reached)`)
-      }
-    } catch (error: unknown) {
-      notify('error', zh
-        ? `图片加入失败：${error instanceof Error ? error.message : String(error)}`
-        : `Failed to add images: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  } else if (images.length > 0) {
-    notify('error', zh ? '会话服务不可用，图片未加入' : 'Conversation service unavailable; images not added')
-  }
-
-  // 文本类：内联进草稿
-  const overflow = texts.splice(MAX_TEXT_FILES_PER_BATCH)
-  for (const file of overflow) rejected.push({
-    name: file.name,
-    reason: zh ? `batch-limit:${MAX_TEXT_FILES_PER_BATCH}` : `batch-limit:${MAX_TEXT_FILES_PER_BATCH}`,
-  })
-  if (texts.length > 0 && inputActions !== undefined) {
-    try {
-      const block = await renderTextBlock(texts, zh)
-      inputActions.setDraft(currentDraft + (currentDraft === '' ? '' : '\n\n') + block)
-      report.textFilesInlined = texts.length
-    } catch (error: unknown) {
-      notify('error', zh
-        ? `文本文件读取失败：${error instanceof Error ? error.message : String(error)}`
-        : `Failed to read text files: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  // 拒绝项反馈
-  if (report.rejected.length > 0) {
-    const names = report.rejected.map(item => item.name).join('、')
+  const batch = [...files]
+  if (batch.length > MAX_FILES_PER_BATCH) {
+    const dropped = batch.splice(MAX_FILES_PER_BATCH)
+    for (const file of dropped) failed.push({ name: file.name, reason: 'batch-limit' })
     notify('error', zh
-      ? `已忽略 ${report.rejected.length} 个文件（仅支持图片与文本类文件）：${names}`
-      : `Ignored ${report.rejected.length} file(s) (only images and text-like files are supported): ${names}`)
+      ? `一次最多带入 ${MAX_FILES_PER_BATCH} 个文件,已跳过 ${dropped.length} 个`
+      : `At most ${MAX_FILES_PER_BATCH} files per batch; skipped ${dropped.length}`)
   }
+  if (batch.length === 0) return report
 
+  const api = env.api()
+  const key = sessionId as unknown as string
+  const cwd = sessions.list.getSnapshot().byId[key]?.cwd
+  if (api === undefined) {
+    notify('error', zh ? '附件服务未就绪,请稍后重试' : 'Attachment service not ready; try again shortly')
+    for (const file of batch) failed.push({ name: file.name, reason: 'no-api' })
+    return report
+  }
+  if (cwd === undefined) {
+    notify('error', zh
+      ? '当前会话没有工作区目录,附件无处安放;请在项目目录中打开会话'
+      : 'This session has no workspace directory to receive files; open a session in a project directory')
+    for (const file of batch) failed.push({ name: file.name, reason: 'no-cwd' })
+    return report
+  }
+  for (const file of batch) {
+    try {
+      const data = await fileToBase64(file)
+      const result = await api.stashFile(cwd, key, file.name, data)
+      if (!result.ok) throw new Error(result.error.message)
+      if (isImage(file)) store.setPreview(result.value.relPath, URL.createObjectURL(file))
+      report.filesStashed += 1
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      failed.push({ name: file.name, reason: message })
+      notify('error', zh ? `「${file.name}」带入失败:${message}` : `Failed to attach "${file.name}": ${message}`)
+    }
+  }
+  if (report.filesStashed > 0) store.bump(key)
   return report
+}
+
+/** 粘贴文本里的附件引用行(📎 … → .dsh/uploads/…)。 */
+const REF_LINE = /^📎\s*.+?→\s*(\.dsh\/uploads\/\S+)/u
+
+/**
+ * 处理粘贴文本中的附件引用:逐行 restage 命中的引用,返回剩余文本
+ * (剔除引用行与说明行)。没有引用行时 handled 为 false,调用方不拦截。
+ * @param env - 组装期闭包的运行依赖。
+ * @param sessionId - 目标会话。
+ * @param text - 粘贴的纯文本。
+ * @returns handled 与应插入草稿的剩余文本。
+ */
+export async function restagePastedText(
+  env: IntakeEnv,
+  sessionId: SessionId,
+  text: string,
+): Promise<{ handled: boolean; remaining: string }> {
+  const lines = text.split('\n')
+  const refs = lines.map(line => REF_LINE.exec(line.trim())?.[1]).filter((v): v is string => v !== undefined)
+  if (refs.length === 0) return { handled: false, remaining: text }
+  const zh = navigator.language.toLowerCase().startsWith('zh')
+  const key = sessionId as unknown as string
+  const api = env.api()
+  const cwd = env.sessions.list.getSnapshot().byId[key]?.cwd
+  if (api === undefined || cwd === undefined) return { handled: false, remaining: text }
+  const conversation = env.ctx.get('conversation') as { input: { for(actx: unknown): { notify(level: string, text: string): void } } } | undefined
+  let staged = 0
+  for (const relPath of refs) {
+    try {
+      const result = await api.restageFile(cwd, key, relPath)
+      if (!result.ok) throw new Error(result.error.message)
+      staged += 1
+    } catch (error: unknown) {
+      const actx = env.ctx.sessions.scope(sessionId)
+      if (conversation !== undefined && actx !== undefined) {
+        conversation.input.for(actx).notify('error', zh
+          ? `附件引用无效(${relPath}):${error instanceof Error ? error.message : String(error)}`
+          : `Invalid attachment reference (${relPath})`)
+      }
+    }
+  }
+  if (staged > 0) env.store.bump(key)
+  const remaining = lines
+    .filter(line => REF_LINE.exec(line.trim()) === null && !line.trim().startsWith('(附件已存入工作区'))
+    .join('\n')
+    .replace(/^\n+|\n+$/g, '')
+  return { handled: staged > 0, remaining }
 }

@@ -1,7 +1,7 @@
 {
-  "name": "dsh-file-upload",
+  "name": "dsh-attachments",
   "version": "0.1.0",
-  "description": "dsh 文件上传插件：输入框工具栏左侧的附件按钮 —— 图片走原生附件管线（缩略图栏展示），文本类文件以带标注的代码块内联进草稿，二进制文件给出明确拒绝提示",
+  "description": "dsh 附件插件:把任何文件带进会话——图片走原生附件管线,其余一切落盘进工作区、以路径引用交给模型;零类型拒绝,认不认是模型的事",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -19,7 +19,12 @@
     },
     "client": {
       "platform": "web",
-      "inject": []
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
     }
   },
   "files": [
@@ -34,7 +39,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CocoSgt/dsh-file-upload.git"
+    "url": "git+https://github.com/CocoSgt/dsh-attachments.git"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
@@ -42,9 +47,18 @@
     "@deepseek-ai/dsh-client-ui-conversation": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.6",
+    "@types/node": "^26.2.0",
     "@types/react": "^18.3.0",
+    "@types/react-dom": "~18.3.7",
     "react": "^18.3.0",
+    "react-dom": "^18.3.1",
     "tsdown": "^0.12.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "zod": "^4.4.3"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-llm": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.0-rc.5"
   }
 }
