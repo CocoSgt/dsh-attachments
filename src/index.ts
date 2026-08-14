@@ -415,8 +415,9 @@ export class AttachmentsGateway extends TypertRemoteService {
     return { relPath, size: stats.size }
   }
 
-  /** 清空某会话的暂存并删除未发送的落盘文件(页面刷新时调用:与原生
-   * 图片草稿同寿命——刷新即弃,保持两类附件行为一致)。 */
+  /** 清空某会话的暂存并删除未发送的落盘文件。仅供用户显式「全部清除」
+   * 类动作调用;绝不在页面加载/挂载时触发——多端同会话时,一端加载不能
+   * 销毁另一端的待发送附件。 */
   clearStash(cwd: string, sessionId: string): RemoveStashResult {
     const resolvedCwd = checkCwd(cwd)
     const session = checkSessionId(sessionId)

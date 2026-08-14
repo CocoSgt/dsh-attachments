@@ -4,7 +4,8 @@
  * 卡片数据以宿主 pending 为真相源(fileStash/listStash):
  * - intake 落盘成功 → store.bump → 重取;
  * - 低频轮询兜底(发送后附件被注入消费 → 卡片自动消失);
- * - ✕ → removeStash(移出暂存 + 删落盘文件)→ 重取。
+ * - ✕ → removeStash(移出暂存 + 删落盘文件)→ 重取;
+ * - 挂载/加载只读不写:绝不清空暂存(多端同会话时保护其他端的待发附件)。
  *
  * 摆放:第三方插槽拿不到 composer 内部席位,这里用 DOM portal 把卡片
  * 投进 composer 卡片内——从本组件 DOM 向上探测「下一兄弟子树含
@@ -34,9 +35,6 @@ export interface UploadDockProps extends LocaleProps {
   /** 打开预览弹层(client/index.ts 注入)。 */
   openPreview?: (relPath: string, name: string, line: string) => void
 }
-
-/** 本次页面加载已做过「刷新清空」的会话(模块级 = 页生命周期)。 */
-const clearedOnLoad = new Set<string>()
 
 function extLabel(name: string): string {
   const dot = name.lastIndexOf('.')
@@ -145,19 +143,10 @@ export function UploadDock({ sessionId, inputActions, store, api, sessions, open
         })
         .catch(() => undefined)
     }
-    // 刷新一致性:与原生图片草稿同寿命——本页首次接触该会话时,先清掉
-    // 上个页面生命周期遗留的暂存(未发送的落盘文件一并删除),再开始拉取。
-    if (!clearedOnLoad.has(key)) {
-      clearedOnLoad.add(key)
-      const cwd = sessions?.list.getSnapshot().byId[key]?.cwd
-      if (cwd !== undefined) {
-        void calls.clearStash(cwd, key).catch(() => undefined).finally(() => { if (!cancelled) pull() })
-      } else {
-        pull()
-      }
-    } else {
-      pull()
-    }
+    // 只读同步:加载/挂载绝不破坏宿主暂存(同会话多端打开时,另一端的
+    // 待发送附件必须存活);消费(发送注入)与撤回(✕)都发生在宿主侧,
+    // 本端经轮询如实反映。
+    pull()
     const timer = setInterval(pull, 2000)
     return () => { cancelled = true; clearInterval(timer) }
   }, [api, key, version])

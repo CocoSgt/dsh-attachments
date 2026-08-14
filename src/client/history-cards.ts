@@ -187,30 +187,40 @@ export function installHistoryCards(): () => void {
   })
   observer.observe(document.body, { childList: true, subtree: true })
   sweep(document.body)
-  // 组合复制:文字行的复制按钮,若其行块前兄弟是附件装饰行,则拦截并
-  // 写入「📎 引用行 + 文字」;无附件的行走宿主默认复制,不受影响。
+  // 组合复制:文字行的复制按钮,若其行块紧邻的前兄弟恰是本装饰器认定的
+  // 附件行(.dat-carded 本体,或装饰器打过 .dat-carded-row 的行容器),
+  // 则拦截并写入「📎 引用行 + 文字」;其余一切按钮交回宿主默认行为。
+  // 边界即装饰器自有标记(decorate() 追加 .dat-msg-cards 与 .dat-carded-row
+  // 的落点),不跨组猜测:从按钮向上至多 2 层祖先,前兄弟对不上即放行。
   const onClickCapture = (event: MouseEvent): void => {
     const target = event.target instanceof Element ? event.target : null
     const button = target?.closest('button') ?? null
     if (button === null || button.closest('.dat-msg-cards') !== null) return
-    let level: HTMLElement | null = button
+    /** prev 是否为装饰器自有的附件行;是则返回其中的 .dat-carded。 */
+    const attachmentRow = (prev: Element | null): HTMLElement | null => {
+      if (!(prev instanceof HTMLElement)) return null
+      if (prev.classList.contains('dat-carded')) return prev
+      if (prev.classList.contains('dat-carded-row')) {
+        const inner = prev.querySelector('.dat-carded')
+        return inner instanceof HTMLElement ? inner : null
+      }
+      return null
+    }
+    let level: Element | null = button
     let carded: HTMLElement | null = null
-    let rowLevel: HTMLElement | null = null
-    for (let depth = 0; depth < 8 && level !== null; depth += 1) {
-      const prev = level.previousElementSibling
-      if (prev instanceof HTMLElement) {
-        const found = prev.querySelector('.dat-carded')
-        if (found instanceof HTMLElement) {
-          carded = found
-          rowLevel = level
-          break
-        }
+    let textRow: HTMLElement | null = null
+    for (let depth = 0; depth < 3 && level !== null; depth += 1) {
+      const found = attachmentRow(level.previousElementSibling)
+      if (found !== null) {
+        carded = found
+        textRow = level instanceof HTMLElement ? level : null
+        break
       }
       level = level.parentElement
     }
-    if (carded === null || rowLevel === null) return
+    if (carded === null || textRow === null) return
     const refs = referenceLines(carded)
-    const text = (findBubble(rowLevel)?.textContent ?? '').trim()
+    const text = (findBubble(textRow)?.textContent ?? '').trim()
     if (refs === '' || text === '') return
     event.preventDefault()
     event.stopPropagation()

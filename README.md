@@ -36,7 +36,7 @@ Restart `dsh web` afterwards. Uninstall: `dsh plugin --profile web remove dsh-at
 
 - Stashing requires the session to have a workspace directory (cwd). **Without a workspace, every file type fails** — there is nowhere to put the file.
 - 32 MB per-file transfer cap (a JSON-wire reality); oversized files fail loudly, never silently.
-- The pending stash lives in host memory: after a dsh restart, unsent cards are gone (the files remain in the uploads directory and can be dragged in again). With the same session open in multiple clients, cards follow host state.
+- The pending stash lives in host memory: after a dsh restart, unsent cards are gone (the files remain in the uploads directory and can be dragged in again). With the same session open in multiple clients, cards follow host state truthfully: opening or refreshing a page never clears the stash (loading is read-only), a send from any client consumes the pending entries everywhere (cards vanish via polling; the uploaded files stay on disk because the sent message references them), and only the ✕ buttons remove files.
 - `.dsh/uploads/` is not garbage-collected automatically; the card ✕ deletes the corresponding file, and files referenced by already-sent messages should be kept (history still points at them).
 
 ## Development
