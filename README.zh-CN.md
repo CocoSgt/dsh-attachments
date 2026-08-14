@@ -1,6 +1,9 @@
+# dsh-attachments
+
 简体中文 | [English](README.md)
 
-# dsh-attachments
+npm 包名:`dsh-attachments` · GitHub 仓库:
+[CocoSgt/dsh-attachments](https://github.com/CocoSgt/dsh-attachments)
 
 DeepSeek Harness(dsh)的第三方附件插件:**把任何文件带进会话,零类型拒绝**。
 
@@ -57,13 +60,40 @@ DeepSeek Harness(dsh)的第三方附件插件:**把任何文件带进会话,零�
 
 ## 安装
 
+从 npm 安装:
+
 ```sh
 dsh plugin --profile web add dsh-attachments
 ```
 
-或从 GitHub 安装:`dsh plugin --profile web add github:CocoSgt/dsh-attachments`。
+三个 dsh 插件可以一条命令一起安装:
+
+```sh
+dsh plugin --profile web add dsh-skills dsh-attachments dsh-inspector
+```
+
+GitHub 回退方式:
+
+```sh
+dsh plugin --profile web add github:CocoSgt/dsh-attachments
+```
+
+> 注意:自建 profile 的 `~/.dsh/profiles/<name>/package.json` 里
+> `dsh.profile.bundles` 必须包含 `@deepseek-ai/dsh-base` 与
+> `@deepseek-ai/dsh-web-app`,否则启动会静默挂起。
 
 安装后重启 `dsh web`。卸载:`dsh plugin --profile web remove dsh-attachments`。
+
+## 同系列插件
+
+- [dsh-skills](https://github.com/CocoSgt/dsh-skills)
+  ([npm](https://www.npmjs.com/package/dsh-skills))——技能中枢:把散落在
+  Claude Code 目录、项目目录与 `.skill` 包里的技能汇成全局库,「/」菜单即取
+  即用。
+- [dsh-inspector](https://github.com/CocoSgt/dsh-inspector)
+  ([npm](https://www.npmjs.com/package/dsh-inspector))——约束文件面板:按
+  harness 真实载入顺序查看/就地编辑当前会话的 AGENTS.md/CLAUDE.md 指引链,
+  附四个技能根状态。
 
 ## 已知限制
 

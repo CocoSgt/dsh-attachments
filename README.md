@@ -1,6 +1,9 @@
+# dsh-attachments
+
 [简体中文](README.zh-CN.md) | English
 
-# dsh-attachments
+npm package: `dsh-attachments` · GitHub repository:
+[CocoSgt/dsh-attachments](https://github.com/CocoSgt/dsh-attachments)
 
 A third-party attachment plugin for DeepSeek Harness (dsh): **bring any file into the conversation, zero type rejection**.
 
@@ -26,13 +29,44 @@ Stashed files render as cards above the composer (`conversation.input.dock`): ex
 
 ## Install
 
+Install from npm:
+
 ```sh
 dsh plugin --profile web add dsh-attachments
 ```
 
-Or from GitHub: `dsh plugin --profile web add github:CocoSgt/dsh-attachments`.
+All three dsh plugins can be added in one command:
 
-Restart `dsh web` afterwards. Uninstall: `dsh plugin --profile web remove dsh-attachments`.
+```sh
+dsh plugin --profile web add dsh-skills dsh-attachments dsh-inspector
+```
+
+GitHub fallback:
+
+```sh
+dsh plugin --profile web add github:CocoSgt/dsh-attachments
+```
+
+> Note: a self-built profile's `~/.dsh/profiles/<name>/package.json` must list
+> `@deepseek-ai/dsh-base` and `@deepseek-ai/dsh-web-app` in
+> `dsh.profile.bundles`, otherwise startup hangs silently.
+
+Restart `dsh web` afterwards. Uninstall:
+`dsh plugin --profile web remove dsh-attachments`.
+
+## Companion plugins
+
+The other two plugins from the same suite:
+
+- [dsh-skills](https://github.com/CocoSgt/dsh-skills)
+  ([npm](https://www.npmjs.com/package/dsh-skills)) — a skill hub: aggregate
+  skills scattered across Claude Code directories, projects, and `.skill`
+  packages into one global library, invocable from the "/" menu.
+- [dsh-inspector](https://github.com/CocoSgt/dsh-inspector)
+  ([npm](https://www.npmjs.com/package/dsh-inspector)) — an "Instruction
+  Files" panel showing the exact AGENTS.md/CLAUDE.md instruction chain in
+  effect for the session, in real load order, with in-place editing and
+  skill-root status.
 
 ## Known limitations
 
