@@ -8,10 +8,11 @@ import type { CSSProperties, ChangeEvent } from 'react'
 import { IconPaperclipOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InputActionsFace } from './intake.ts'
+import { tr, type LocaleProps } from './locales.js'
 import type { UploadsStore } from './uploads-store.js'
 
 /** 组件消费的 props(全部按可缺失处理,防御宿主版本漂移)。 */
-export interface AttachButtonProps {
+export interface AttachButtonProps extends LocaleProps {
   sessionId?: SessionId
   inputActions?: InputActionsFace
   /** 本插件通过 slot inject 提供的分诊入口。 */
@@ -36,14 +37,15 @@ const BUTTON_STYLE: CSSProperties = {
 }
 
 /** 附件按钮。 */
-export function AttachButton({ sessionId, inputActions, intake, store }: AttachButtonProps) {
+export function AttachButton({ sessionId, inputActions, intake, store, t }: AttachButtonProps) {
   const fileInput = useRef<HTMLInputElement>(null)
   // 冗余捕捉:与 UploadDock 双保险,任一渲染即可路由全窗拖拽/粘贴。
   if (store !== undefined && sessionId !== undefined) {
     store.capture({ sessionId: sessionId as unknown as string, inputActions })
   }
   const [busy, setBusy] = useState(false)
-  const zh = navigator.language.toLowerCase().startsWith('zh')
+  // t 为槽注册声明 locale: 后框架合成的标准席位;缺失时回退模块级 tr()。
+  const lc = t ?? tr
 
   const handleClick = useCallback(() => { fileInput.current?.click() }, [])
 
@@ -68,10 +70,8 @@ export function AttachButton({ sessionId, inputActions, intake, store }: AttachB
         style={{ ...BUTTON_STYLE, opacity: busy ? 0.4 : 0.75 }}
         disabled={busy}
         onClick={handleClick}
-        title={zh
-          ? '添加附件:任何文件都可以——图片直接上传,其余落进工作区交给模型处理'
-          : 'Attach anything — images upload; other files land in the workspace for the agent'}
-        aria-label={zh ? '添加附件' : 'Attach files'}
+        title={lc('attach.title')}
+        aria-label={lc('attach.aria')}
         data-plugin="dsh-attachments"
       >
         <IconPaperclipOutline16 />

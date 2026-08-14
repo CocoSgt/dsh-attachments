@@ -32,8 +32,19 @@ export interface InvocationDescriptorLike {
   readonly result: StrictCodec
 }
 
+/**
+ * RPC 错误分支:code 为稳定 dot-code(宿主 failure 载荷;客户端词典命中
+ * 即本地化渲染),message 为宿主兜底文案,params/level 可选。
+ */
+export interface RpcErrorFace {
+  readonly code: string
+  readonly message: string
+  readonly params?: Readonly<Record<string, unknown>>
+  readonly level?: 'error' | 'idle'
+}
+
 /** RPC 结果的共用外形。 */
-export type RpcResult<T> = { ok: true; value: T } | { ok: false; error: { code: string; message: string } }
+export type RpcResult<T> = { ok: true; value: T } | { ok: false; error: RpcErrorFace }
 
 /** fileStash 命名空间挂载后的调用面。 */
 export interface AttachmentsCalls {

@@ -26,7 +26,7 @@ import { homedir } from 'node:os'
 import { isAbsolute, join, resolve, sep } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { TypertLookupFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 
 /** 单个文件经 RPC 落盘的解码后字节上限(JSON wire 传输的现实约束)。 */
 export const MAX_STASH_BYTES = 32 * 1024 * 1024
@@ -99,27 +99,66 @@ export interface ListStashResult {
   readonly files: readonly StashedFile[]
 }
 
+/**
+ * RPC 失败载荷:稳定 dot-code + 模板参数 + 兜底中文文案。客户端词典命中
+ * code 即本地化渲染(t(code, params)),未命中回退 message——wire 上
+ * 三者皆为 src-json 安全值(可选字段条件展开,无 undefined)。
+ */
+export interface StashFailurePayload {
+  /** 稳定 dot-code(客户端词典键,如 'stash.err.tooLarge')。 */
+  readonly code: string
+  /** 兜底文案(中文,保持既有字节,兼容旧 wire 消费方)。 */
+  readonly message: string
+  /** `{name}` 模板参数(可选,条件展开)。 */
+  readonly params?: Readonly<Record<string, string | number>>
+  /** 提示级别(客户端据此选 notice 通道,不再正则匹配中文)。 */
+  readonly level?: 'error' | 'idle'
+}
+
+/**
+ * 构造一个携带结构化载荷的 RPC 失败。经网关 rpcFailure 对
+ * TypertLookupFailure 的原样透传,failure 对象即客户端的 result.error。
+ * @param code - 稳定 dot-code。
+ * @param message - 兜底中文文案。
+ * @param params - 可选 `{name}` 模板参数。
+ * @returns 待抛出的失败。
+ */
+function failure(
+  code: string,
+  message: string,
+  params?: Record<string, string | number>,
+): TypertLookupFailure<StashFailurePayload> {
+  return new TypertLookupFailure<StashFailurePayload>({
+    code,
+    ...(params === undefined ? {} : { params }),
+    level: 'error',
+    message,
+  })
+}
+
 /** 校验并解析工作区目录:必须是存在的绝对路径目录。 */
 function checkCwd(cwd: string): string {
   if (typeof cwd !== 'string' || cwd.length === 0 || cwd.includes('\0')) {
-    throw new Error('attachments: cwd 必须是非空字符串')
+    throw failure('cwd.err.invalid', 'attachments: cwd 必须是非空字符串')
   }
   if (!isAbsolute(cwd)) {
-    throw new Error(`attachments: cwd 必须是绝对路径,收到 ${JSON.stringify(cwd)}`)
+    throw failure('cwd.err.notAbsolute', `attachments: cwd 必须是绝对路径,收到 ${JSON.stringify(cwd)}`, {
+      value: JSON.stringify(cwd),
+    })
   }
   let stats
   try {
     stats = statSync(cwd)
   } catch {
-    throw new Error(`attachments: 工作区目录不可访问: ${cwd}`)
+    throw failure('cwd.err.unreachable', `attachments: 工作区目录不可访问: ${cwd}`, { cwd })
   }
-  if (!stats.isDirectory()) throw new Error(`attachments: cwd 不是目录: ${cwd}`)
+  if (!stats.isDirectory()) throw failure('cwd.err.notDir', `attachments: cwd 不是目录: ${cwd}`, { cwd })
   return resolve(cwd)
 }
 
 function checkSessionId(sessionId: string): string {
   if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 200) {
-    throw new Error('attachments: sessionId 必须是非空字符串')
+    throw failure('session.err.invalid', 'attachments: sessionId 必须是非空字符串')
   }
   return sessionId
 }
@@ -285,14 +324,18 @@ export class AttachmentsGateway extends TypertRemoteService {
   stashFile(cwd: string, sessionId: string, name: string, dataBase64: string): StashResult {
     const resolvedCwd = checkCwd(cwd)
     const session = checkSessionId(sessionId)
-    if (typeof dataBase64 !== 'string') throw new Error('attachments: dataBase64 必须是字符串')
+    if (typeof dataBase64 !== 'string') throw failure('stash.err.data', 'attachments: dataBase64 必须是字符串')
     const staged = this.pending.get(session) ?? []
     if (staged.length >= MAX_PENDING_PER_SESSION) {
-      throw new Error(`attachments: 一条消息最多暂存 ${MAX_PENDING_PER_SESSION} 个附件`)
+      throw failure('stash.err.tooMany', `attachments: 一条消息最多暂存 ${MAX_PENDING_PER_SESSION} 个附件`, {
+        max: MAX_PENDING_PER_SESSION,
+      })
     }
     const bytes = Buffer.from(dataBase64, 'base64')
     if (bytes.length > MAX_STASH_BYTES) {
-      throw new Error(`attachments: 文件超过 ${MAX_STASH_BYTES / 1024 / 1024}MB 传输上限;更大的文件请直接放进项目目录后在消息里写路径`)
+      throw failure('stash.err.tooLarge', `attachments: 文件超过 ${MAX_STASH_BYTES / 1024 / 1024}MB 传输上限;更大的文件请直接放进项目目录后在消息里写路径`, {
+        max: MAX_STASH_BYTES / 1024 / 1024,
+      })
     }
     const dir = join(resolvedCwd, UPLOADS_DIR)
     mkdirSync(dir, { recursive: true })
@@ -315,7 +358,7 @@ export class AttachmentsGateway extends TypertRemoteService {
     const resolvedCwd = checkCwd(cwd)
     const session = checkSessionId(sessionId)
     if (typeof relPath !== 'string' || !relPath.startsWith(`${UPLOADS_DIR}/`) || relPath.includes('..') || relPath.includes('\0')) {
-      throw new Error(`attachments: 不支持的撤回路径: ${JSON.stringify(relPath)}`)
+      throw failure('remove.err.badPath', `attachments: 不支持的撤回路径: ${JSON.stringify(relPath)}`, { path: relPath })
     }
     const staged = this.pending.get(session)
     if (staged !== undefined) {
@@ -326,7 +369,7 @@ export class AttachmentsGateway extends TypertRemoteService {
     const target = resolve(resolvedCwd, relPath)
     const uploadsRoot = join(resolvedCwd, UPLOADS_DIR)
     if (!target.startsWith(uploadsRoot + sep)) {
-      throw new Error('attachments: 解析后的路径越出了 uploads 目录')
+      throw failure('stash.err.escape', 'attachments: 解析后的路径越出了 uploads 目录')
     }
     if (statOf(target) === undefined) return { removed: false }
     unlinkSync(target)
@@ -338,11 +381,11 @@ export class AttachmentsGateway extends TypertRemoteService {
     const resolvedCwd = checkCwd(cwd)
     const session = checkSessionId(sessionId)
     if (typeof relPath !== 'string' || !relPath.startsWith(`${UPLOADS_DIR}/`) || relPath.includes('..') || relPath.includes('\0')) {
-      throw new Error(`attachments: 不支持的引用路径: ${JSON.stringify(relPath)}`)
+      throw failure('restage.err.badPath', `attachments: 不支持的引用路径: ${JSON.stringify(relPath)}`, { path: relPath })
     }
     const target = resolve(resolvedCwd, relPath)
     if (!target.startsWith(join(resolvedCwd, UPLOADS_DIR) + sep)) {
-      throw new Error('attachments: 解析后的路径越出了 uploads 目录')
+      throw failure('stash.err.escape', 'attachments: 解析后的路径越出了 uploads 目录')
     }
     let stats = statOf(target)
     if (stats === undefined) {
@@ -351,18 +394,20 @@ export class AttachmentsGateway extends TypertRemoteService {
       const source = loadIndex()[fileName]
       const sourceStats = source === undefined ? undefined : statOf(source)
       if (source === undefined || sourceStats === undefined) {
-        throw new Error(`attachments: 引用的文件不存在(本地与全局索引均未命中): ${relPath}`)
+        throw failure('restage.err.missing', `attachments: 引用的文件不存在(本地与全局索引均未命中): ${relPath}`, { path: relPath })
       }
       mkdirSync(join(resolvedCwd, UPLOADS_DIR), { recursive: true })
       copyFileSync(source, target)
       recordIndex(fileName, target)
       stats = statOf(target)
-      if (stats === undefined) throw new Error(`attachments: 迁移后无法读取文件: ${relPath}`)
+      if (stats === undefined) throw failure('restage.err.migrate', `attachments: 迁移后无法读取文件: ${relPath}`, { path: relPath })
     }
     const staged = this.pending.get(session) ?? []
     if (staged.some(file => file.relPath === relPath)) return { relPath, size: stats.size }
     if (staged.length >= MAX_PENDING_PER_SESSION) {
-      throw new Error(`attachments: 一条消息最多暂存 ${MAX_PENDING_PER_SESSION} 个附件`)
+      throw failure('stash.err.tooMany', `attachments: 一条消息最多暂存 ${MAX_PENDING_PER_SESSION} 个附件`, {
+        max: MAX_PENDING_PER_SESSION,
+      })
     }
     const base = relPath.slice(UPLOADS_DIR.length + 1)
     const name = base.replace(/^\d{6}-\d{6}(?:-\d+)?-/u, '')
@@ -395,15 +440,15 @@ export class AttachmentsGateway extends TypertRemoteService {
   readStash(cwd: string, relPath: string): ReadStashResult {
     const resolvedCwd = checkCwd(cwd)
     if (typeof relPath !== 'string' || !relPath.startsWith(`${UPLOADS_DIR}/`) || relPath.includes('..') || relPath.includes('\0')) {
-      throw new Error(`attachments: 不支持的预览路径: ${JSON.stringify(relPath)}`)
+      throw failure('read.err.badPath', `attachments: 不支持的预览路径: ${JSON.stringify(relPath)}`, { path: relPath })
     }
     const target = resolve(resolvedCwd, relPath)
     if (!target.startsWith(join(resolvedCwd, UPLOADS_DIR) + sep)) {
-      throw new Error('attachments: 解析后的路径越出了 uploads 目录')
+      throw failure('stash.err.escape', 'attachments: 解析后的路径越出了 uploads 目录')
     }
     const stats = statOf(target)
-    if (stats === undefined) throw new Error(`attachments: 文件不存在: ${relPath}`)
-    if (stats.size > 20 * 1024 * 1024) throw new Error('attachments: 文件超过 20MB 预览上限,请用系统应用打开')
+    if (stats === undefined) throw failure('read.err.missing', `attachments: 文件不存在: ${relPath}`, { path: relPath })
+    if (stats.size > 20 * 1024 * 1024) throw failure('read.err.tooLarge', 'attachments: 文件超过 20MB 预览上限,请用系统应用打开', { max: 20 })
     return { dataBase64: readFileSync(target).toString('base64'), size: stats.size }
   }
 

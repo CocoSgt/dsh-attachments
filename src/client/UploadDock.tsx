@@ -20,11 +20,12 @@ import { createPortal } from 'react-dom'
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { StashedFile } from '../index.js'
 import { formatSize, type InputActionsFace } from './intake.ts'
+import { tr, type LocaleProps } from './locales.js'
 import type { AttachmentsCalls, SessionsFace } from './types.js'
 import type { UploadsStore } from './uploads-store.js'
 
 /** 组件消费的 props(槽标准 props + inject 面,全部按可缺失防御)。 */
-export interface UploadDockProps {
+export interface UploadDockProps extends LocaleProps {
   sessionId?: SessionId
   inputActions?: InputActionsFace
   store?: UploadsStore
@@ -112,7 +113,9 @@ function placeHost(scope: HTMLElement, host: HTMLElement): void {
 }
 
 /** 附件卡片组件。 */
-export function UploadDock({ sessionId, inputActions, store, api, sessions, openPreview }: UploadDockProps): ReactNode {
+export function UploadDock({ sessionId, inputActions, store, api, sessions, openPreview, t }: UploadDockProps): ReactNode {
+  // t 为槽注册声明 locale: 后框架合成的标准席位;缺失时回退模块级 tr()。
+  const lc = t ?? tr
   const key = sessionId as unknown as string | undefined
   const version = useSyncExternalStore(
     store?.subscribe ?? (() => () => {}),
@@ -211,7 +214,7 @@ export function UploadDock({ sessionId, inputActions, store, api, sessions, open
     <div
       key={file.relPath}
       className="dat-card"
-      title={`${file.relPath} · 点击预览`}
+      title={lc('dock.card.title', { path: file.relPath })}
       style={{ cursor: 'pointer' }}
       onClick={() => { openPreview?.(file.relPath, file.name, `📎 ${file.name}(${formatSize(file.size)}) → ${file.relPath}`) }}
     >
@@ -225,7 +228,7 @@ export function UploadDock({ sessionId, inputActions, store, api, sessions, open
       <button
         type="button"
         className="dat-card-remove"
-        aria-label={`移除附件 ${file.name}`}
+        aria-label={lc('dock.remove.aria', { name: file.name })}
         onClick={() => { removeCard(file) }}
       >✕</button>
     </div>

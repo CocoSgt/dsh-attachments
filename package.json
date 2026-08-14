@@ -1,7 +1,7 @@
 {
   "name": "dsh-attachments",
   "version": "0.1.0",
-  "description": "dsh 附件插件:把任何文件带进会话——图片走原生附件管线,其余一切落盘进工作区、以路径引用交给模型;零类型拒绝,认不认是模型的事",
+  "description": "Bring any file into the conversation — stashed to the workspace and referenced by path; zero type rejection",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -30,7 +30,8 @@
   "files": [
     "lib",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "README.zh-CN.md"
   ],
   "scripts": {
     "build": "tsdown",

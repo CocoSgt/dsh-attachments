@@ -22,7 +22,14 @@ import { ensureStyles } from './styles.js'
 import { AttachButton } from './AttachButton.tsx'
 import { UploadDock } from './UploadDock.tsx'
 import { createUploadsStore } from './uploads-store.js'
+import { NS, en, rpcText, setBoundT, tr, zh } from './locales.js'
 import type { AttachmentsCalls, RemoteFace, SessionsFace } from './types.js'
+
+/** locale 服务的最小注册面(ui-slots 的 LocaleFace 只有 bind/observable,register 在服务本体)。 */
+interface LocaleServiceFace {
+  register(ns: string, dicts: Record<string, Record<string, string>>): unknown
+  bind(ns: string): (key: string, params?: Record<string, unknown>) => string
+}
 
 export { AttachButton } from './AttachButton.tsx'
 export { runIntake } from './intake.ts'
@@ -44,7 +51,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
     package: 'dsh-attachments',
     descriptors: buildDescriptors(),
   })
-  ctx.effect(() => () => { void disposeRemote() }, 'dsh-attachments: 远端描述符挂载')
+  ctx.effect(() => () => { void disposeRemote() }, 'dsh-attachments: remote descriptors')
 
   // 命名空间服务由 $mount 创建,不能写进静态 inject(会永久等待);
   // 动态 inject 后把调用面装进闭包,供 intake / 卡片栏使用。
@@ -65,9 +72,9 @@ export async function apply(ctx: ClientContext): Promise<void> {
       load: async (path: string) => {
         const cwd = currentCwd()
         const remoteCalls = api()
-        if (cwd === undefined || remoteCalls === undefined) throw new Error('会话或服务未就绪')
+        if (cwd === undefined || remoteCalls === undefined) throw new Error(tr('preview.err.notReady'))
         const result = await remoteCalls.readStash(cwd, path)
-        if (!result.ok) throw new Error(result.error.message)
+        if (!result.ok) throw new Error(rpcText(result.error))
         return result.value
       },
       openSystem: (path: string) => {
@@ -88,32 +95,48 @@ export async function apply(ctx: ClientContext): Promise<void> {
     inputActions: InputActionsFace | undefined,
   ): Promise<unknown> => runIntake(env, sessionId, files, inputActions)
 
-  ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
-    name: 'conversation.input.left',
-    id: 'attachments',
-    order: 20,
-    inject: (sessionId: SessionId) => ({
-      store,
-      intake: (
-        files: readonly File[],
-        inputActions: InputActionsFace | undefined,
-      ): Promise<unknown> => intake(sessionId, files, inputActions),
-    }),
-  }, AttachButton))
+  // locale 服务由宿主装配(立即层基础设施);词典注册先于槽注册,席位才
+  // 能在首渲染解析。注册项声明 locale: NS 后,框架给组件 props 合成标准
+  // t 席位(随语言切换换引用、自然重渲染)。
+  ctx.inject(['locale'], (localeCtx: ClientContext): void => {
+    const locale = (localeCtx as unknown as { locale: LocaleServiceFace }).locale
+    ctx.effect(() => {
+      const dispose = locale.register(NS, { zh, en })
+      return () => { if (typeof dispose === 'function') dispose() }
+    }, 'dsh-attachments: dictionaries')
+    // 无槽席位的窗口级模块(dropzone/preview/history-cards/intake)经
+    // 模块级 tr() 取词:bind 的 t 调用时读当前语言。
+    setBoundT(locale.bind(NS))
 
-  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
-    name: 'conversation.input.dock',
-    id: 'attachments-uploads',
-    order: 30,
-    inject: () => ({ store, api, sessions, openPreview }),
-  }, UploadDock))
+    ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
+      name: 'conversation.input.left',
+      id: 'attachments',
+      order: 20,
+      locale: NS,
+      inject: (sessionId: SessionId) => ({
+        store,
+        intake: (
+          files: readonly File[],
+          inputActions: InputActionsFace | undefined,
+        ): Promise<unknown> => intake(sessionId, files, inputActions),
+      }),
+    }, AttachButton))
 
-  ctx.effect(() => installHistoryCards(), 'dsh-attachments: 历史附件卡装饰')
+    ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+      name: 'conversation.input.dock',
+      id: 'attachments-uploads',
+      order: 30,
+      locale: NS,
+      inject: () => ({ store, api, sessions, openPreview }),
+    }, UploadDock))
+  })
+
+  ctx.effect(() => installHistoryCards(), 'dsh-attachments: history attachment cards')
   ctx.effect(() => installDropzone({
     store,
     runIntake: (sessionId, files, inputActions) =>
       intake(sessionId as unknown as SessionId, files, inputActions),
     restageText: (sessionId, text) =>
       restagePastedText(env, sessionId as unknown as SessionId, text),
-  }), 'dsh-attachments: 全窗拖拽与粘贴')
+  }), 'dsh-attachments: window drop and paste')
 }

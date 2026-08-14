@@ -4,8 +4,9 @@
  * 点击附件卡打开:图片直接渲染;Markdown/文本/代码按纯文本渲染;其他
  * 类型提示并提供「用系统应用打开」。头部附「复制引用」(附件的文本协议
  * 形态,粘贴到输入框即等同重新携带)。Esc / 点击遮罩关闭。
- * 纯自建 DOM,与 React 树无交集。
+ * 纯自建 DOM,与 React 树无交集;文案经模块级 tr() 取词(调用时读当前语言)。
  */
+import { tr } from './locales.js'
 
 /** 预览请求的运行依赖。 */
 export interface PreviewEnv {
@@ -51,19 +52,20 @@ export function showPreview(env: PreviewEnv, relPath: string, name: string, refe
   const copyBtn = document.createElement('button')
   copyBtn.type = 'button'
   copyBtn.className = 'dat-preview-btn'
-  copyBtn.textContent = '复制引用'
+  copyBtn.textContent = tr('preview.copy')
   copyBtn.addEventListener('click', () => {
     void navigator.clipboard?.writeText(referenceLine).catch(() => undefined)
-    copyBtn.textContent = '已复制 ✓'
-    setTimeout(() => { copyBtn.textContent = '复制引用' }, 1200)
+    copyBtn.textContent = tr('preview.copied')
+    setTimeout(() => { copyBtn.textContent = tr('preview.copy') }, 1200)
   })
   const closeBtn = document.createElement('button')
   closeBtn.type = 'button'
   closeBtn.className = 'dat-preview-btn'
   closeBtn.textContent = '✕'
+  closeBtn.setAttribute('aria-label', tr('preview.close.aria'))
   const body = document.createElement('div')
   body.className = 'dat-preview-body'
-  body.textContent = '加载中…'
+  body.textContent = tr('preview.loading')
   head.append(title, copyBtn, closeBtn)
   panel.append(head, body)
   overlay.append(panel)
@@ -108,25 +110,25 @@ export function showPreview(env: PreviewEnv, relPath: string, name: string, refe
         const text = new TextDecoder('utf-8', { fatal: false }).decode(base64ToBytes(dataBase64))
         const pre = document.createElement('pre')
         pre.className = 'dat-preview-text'
-        pre.textContent = text.length > 300_000 ? `${text.slice(0, 300_000)}\n…(预览截断)` : text
+        pre.textContent = text.length > 300_000 ? `${text.slice(0, 300_000)}\n${tr('preview.truncated')}` : text
         body.append(pre)
         return
       }
       const hint = document.createElement('div')
       hint.className = 'dat-preview-hint'
-      hint.textContent = `暂不支持在页面内预览 .${ext} 文件。`
+      hint.textContent = tr('preview.unsupported', { ext })
       body.append(hint)
       if (env.openSystem !== undefined) {
         const openBtn = document.createElement('button')
         openBtn.type = 'button'
         openBtn.className = 'dat-preview-btn dat-preview-open'
-        openBtn.textContent = '用系统应用打开'
+        openBtn.textContent = tr('preview.openSystem')
         openBtn.addEventListener('click', () => { env.openSystem?.(relPath) })
         body.append(openBtn)
       }
     })
     .catch((error: unknown) => {
       if (!overlay.isConnected) return
-      body.textContent = `读取失败:${error instanceof Error ? error.message : String(error)}`
+      body.textContent = tr('preview.loadFailed', { message: error instanceof Error ? error.message : String(error) })
     })
 }

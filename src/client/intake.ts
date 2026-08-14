@@ -12,6 +12,7 @@
  */
 import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConversationController, DraftAttachmentId } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { rpcLevel, rpcText, tr } from './locales.js'
 import type { AttachmentsCalls, SessionsFace } from './types.js'
 import type { UploadsStore } from './uploads-store.js'
 
@@ -78,7 +79,6 @@ export async function runIntake(
   _inputActions: InputActionsFace | undefined,
 ): Promise<IntakeReport> {
   const { ctx, sessions, store } = env
-  const zh = navigator.language.toLowerCase().startsWith('zh')
   const failed: { name: string; reason: string }[] = []
   const report: IntakeReport = { filesStashed: 0, failed }
   const conversation = ctx.get('conversation') as ConversationController | undefined
@@ -98,9 +98,7 @@ export async function runIntake(
   if (batch.length > MAX_FILES_PER_BATCH) {
     const dropped = batch.splice(MAX_FILES_PER_BATCH)
     for (const file of dropped) failed.push({ name: file.name, reason: 'batch-limit' })
-    notify('error', zh
-      ? `一次最多带入 ${MAX_FILES_PER_BATCH} 个文件,已跳过 ${dropped.length} 个`
-      : `At most ${MAX_FILES_PER_BATCH} files per batch; skipped ${dropped.length}`)
+    notify('error', tr('intake.err.batchLimit', { max: MAX_FILES_PER_BATCH, count: dropped.length }))
   }
   if (batch.length === 0) return report
 
@@ -108,14 +106,12 @@ export async function runIntake(
   const key = sessionId as unknown as string
   const cwd = sessions.list.getSnapshot().byId[key]?.cwd
   if (api === undefined) {
-    notify('error', zh ? '附件服务未就绪,请稍后重试' : 'Attachment service not ready; try again shortly')
+    notify('error', tr('intake.err.noApi'))
     for (const file of batch) failed.push({ name: file.name, reason: 'no-api' })
     return report
   }
   if (cwd === undefined) {
-    notify('error', zh
-      ? '当前会话没有工作区目录,附件无处安放;请在项目目录中打开会话'
-      : 'This session has no workspace directory to receive files; open a session in a project directory')
+    notify('error', tr('intake.err.noCwd'))
     for (const file of batch) failed.push({ name: file.name, reason: 'no-cwd' })
     return report
   }
@@ -123,13 +119,21 @@ export async function runIntake(
     try {
       const data = await fileToBase64(file)
       const result = await api.stashFile(cwd, key, file.name, data)
-      if (!result.ok) throw new Error(result.error.message)
+      if (!result.ok) {
+        // RPC 失败:dot-code 词典命中即本地化,否则回退宿主兜底文案。
+        failed.push({ name: file.name, reason: result.error.message })
+        notify(rpcLevel(result.error) === 'idle' ? 'info' : 'error', tr('intake.err.failed', {
+          name: file.name,
+          message: rpcText(result.error),
+        }))
+        continue
+      }
       if (isImage(file)) store.setPreview(result.value.relPath, URL.createObjectURL(file))
       report.filesStashed += 1
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       failed.push({ name: file.name, reason: message })
-      notify('error', zh ? `「${file.name}」带入失败:${message}` : `Failed to attach "${file.name}": ${message}`)
+      notify('error', tr('intake.err.failed', { name: file.name, message }))
     }
   }
   if (report.filesStashed > 0) store.bump(key)
@@ -155,7 +159,6 @@ export async function restagePastedText(
   const lines = text.split('\n')
   const refs = lines.map(line => REF_LINE.exec(line.trim())?.[1]).filter((v): v is string => v !== undefined)
   if (refs.length === 0) return { handled: false, remaining: text }
-  const zh = navigator.language.toLowerCase().startsWith('zh')
   const key = sessionId as unknown as string
   const api = env.api()
   const cwd = env.sessions.list.getSnapshot().byId[key]?.cwd
@@ -165,14 +168,24 @@ export async function restagePastedText(
   for (const relPath of refs) {
     try {
       const result = await api.restageFile(cwd, key, relPath)
-      if (!result.ok) throw new Error(result.error.message)
+      if (!result.ok) {
+        const actx = env.ctx.sessions.scope(sessionId)
+        if (conversation !== undefined && actx !== undefined) {
+          conversation.input.for(actx).notify(rpcLevel(result.error) === 'idle' ? 'info' : 'error', tr('intake.err.restage', {
+            path: relPath,
+            message: rpcText(result.error),
+          }))
+        }
+        continue
+      }
       staged += 1
     } catch (error: unknown) {
       const actx = env.ctx.sessions.scope(sessionId)
       if (conversation !== undefined && actx !== undefined) {
-        conversation.input.for(actx).notify('error', zh
-          ? `附件引用无效(${relPath}):${error instanceof Error ? error.message : String(error)}`
-          : `Invalid attachment reference (${relPath})`)
+        conversation.input.for(actx).notify('error', tr('intake.err.restage', {
+          path: relPath,
+          message: error instanceof Error ? error.message : String(error),
+        }))
       }
     }
   }

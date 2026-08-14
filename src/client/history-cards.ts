@@ -12,8 +12,10 @@
  * MutationObserver 重新装饰;文本被编辑得不再匹配时撤销装饰。
  * 禁区:composer 输入区(data-composer-seat)、含 textarea 的容器、
  * 本插件自己的 portal/卡片区,一律不装饰。
- * 点卡片 = 打开预览弹层(复制引用在弹层头部)。
+ * 点卡片 = 打开预览弹层(复制引用在弹层头部)。装饰文案(卡片提示)经
+ * 模块级 tr() 取词;📎 引用行的解析/匹配是文本协议,绝不本地化。
  */
+import { tr } from './locales.js'
 
 /** 预览打开器(client/index.ts 注入)。 */
 let openPreview: (relPath: string, name: string, line: string) => void = () => {}
@@ -62,7 +64,7 @@ function buildCard(entry: ParsedAttachment): HTMLElement {
   meta.textContent = entry.meta
   main.append(name, meta)
   card.append(icon, main)
-  card.title = '点击预览'
+  card.title = tr('card.preview')
   card.style.cursor = 'pointer'
   card.addEventListener('click', () => { openPreview(entry.relPath, entry.name, entry.line) })
   return card

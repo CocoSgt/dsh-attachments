@@ -12,6 +12,7 @@
  * 返回清理函数,随插件卸载移除监听与遮罩。
  */
 import type { InputActionsFace } from './intake.ts'
+import { tr } from './locales.js'
 import type { UploadsStore } from './uploads-store.js'
 
 /** dropzone 的运行依赖。 */
@@ -32,7 +33,6 @@ function hasFiles(transfer: DataTransfer | null): boolean {
 
 /** 安装全窗拖拽遮罩与粘贴监听;返回清理函数。 */
 export function installDropzone(env: DropzoneEnv): () => void {
-  const zh = navigator.language.toLowerCase().startsWith('zh')
   const overlay = document.createElement('div')
   overlay.className = 'dat-overlay'
   overlay.dataset.plugin = 'dsh-attachments'
@@ -48,10 +48,8 @@ export function installDropzone(env: DropzoneEnv): () => void {
   }
   const title = document.createElement('div')
   title.className = 'dat-overlay-title'
-  title.textContent = zh ? '拖放文件加入对话' : 'Drop files to add to chat'
   const sub = document.createElement('div')
   sub.className = 'dat-overlay-sub'
-  sub.textContent = zh ? '任何类型都可以,统一落进工作区交给模型(看图用 read_image)' : 'Anything goes — files land in the workspace for the agent'
   card.append(icons, title, sub)
   overlay.append(card)
   document.body.appendChild(overlay)
@@ -60,6 +58,11 @@ export function installDropzone(env: DropzoneEnv): () => void {
   let owning = false
   let depth = 0
   const show = (visible: boolean): void => {
+    // 遮罩文案在每次显示时取词:窗口级模块无 t 席位,tr() 调用时读当前语言。
+    if (visible) {
+      title.textContent = tr('drop.title')
+      sub.textContent = tr('drop.sub')
+    }
     overlay.style.display = visible ? 'flex' : 'none'
   }
   const reset = (): void => {
