@@ -1,6 +1,6 @@
 简体中文 | [English](README.md)
 
-# dsh-attachment
+# dsh-attachments
 
 DeepSeek Harness(dsh)的第三方附件插件:**把任何文件带进会话,零类型拒绝**。
 
@@ -48,7 +48,7 @@ DeepSeek Harness(dsh)的第三方附件插件:**把任何文件带进会话,零�
   `conversation.input.dock`;全窗拖拽/粘贴经 store 捕捉的「当前 composer」
   上下文路由到目标会话。宿主在 `agent/pre-step` 把暂存附件折进决策。
 - **国际化**:zh/en 双语词典经宿主 locale 服务注册(命名空间
-  `dsh-attachment`)。槽组件拿到标准响应式 `t` 席位;窗口级模块(拖拽
+  `dsh-attachments`)。槽组件拿到标准响应式 `t` 席位;窗口级模块(拖拽
   遮罩、预览、历史卡、分诊 toast)经命名空间绑定的 t 在调用时取词。宿主
   RPC 失败携带稳定 dot-code 与 `{name}` 模板参数(如
   `stash.err.tooLarge` + `{max}`),同时保留中文兜底文案——客户端词典命中
@@ -58,12 +58,12 @@ DeepSeek Harness(dsh)的第三方附件插件:**把任何文件带进会话,零�
 ## 安装
 
 ```sh
-dsh plugin --profile web add dsh-attachment
+dsh plugin --profile web add dsh-attachments
 ```
 
-或从 GitHub 安装:`dsh plugin --profile web add github:CocoSgt/dsh-attachment`。
+或从 GitHub 安装:`dsh plugin --profile web add github:CocoSgt/dsh-attachments`。
 
-安装后重启 `dsh web`。卸载:`dsh plugin --profile web remove dsh-attachment`。
+安装后重启 `dsh web`。卸载:`dsh plugin --profile web remove dsh-attachments`。
 
 ## 已知限制
 

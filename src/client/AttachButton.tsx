@@ -72,7 +72,7 @@ export function AttachButton({ sessionId, inputActions, intake, store, t }: Atta
         onClick={handleClick}
         title={lc('attach.title')}
         aria-label={lc('attach.aria')}
-        data-plugin="dsh-attachment"
+        data-plugin="dsh-attachments"
       >
         <IconPaperclipOutline16 />
       </button>

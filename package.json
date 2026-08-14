@@ -1,5 +1,5 @@
 {
-  "name": "dsh-attachment",
+  "name": "dsh-attachments",
   "version": "0.1.0",
   "description": "Bring any file into the conversation — stashed to the workspace and referenced by path; zero type rejection",
   "type": "module",
@@ -40,7 +40,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CocoSgt/dsh-attachment.git"
+    "url": "git+https://github.com/CocoSgt/dsh-attachments.git"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",

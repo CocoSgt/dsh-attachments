@@ -1,5 +1,5 @@
 /**
- * dsh-attachment 的浏览器半体(产物 lib/client.js)。
+ * dsh-attachments 的浏览器半体(产物 lib/client.js)。
  *
  * 装配:
  * 1. $mount 手写描述符 → ctx.remote.fileStash(落盘网关调用面);
@@ -48,10 +48,10 @@ export async function apply(ctx: ClientContext): Promise<void> {
 
   const remote = (ctx as unknown as { remote: RemoteFace }).remote
   const disposeRemote = await remote.$mount({
-    package: 'dsh-attachment',
+    package: 'dsh-attachments',
     descriptors: buildDescriptors(),
   })
-  ctx.effect(() => () => { void disposeRemote() }, 'dsh-attachment: remote descriptors')
+  ctx.effect(() => () => { void disposeRemote() }, 'dsh-attachments: remote descriptors')
 
   // 命名空间服务由 $mount 创建,不能写进静态 inject(会永久等待);
   // 动态 inject 后把调用面装进闭包,供 intake / 卡片栏使用。
@@ -103,7 +103,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
     ctx.effect(() => {
       const dispose = locale.register(NS, { zh, en })
       return () => { if (typeof dispose === 'function') dispose() }
-    }, 'dsh-attachment: dictionaries')
+    }, 'dsh-attachments: dictionaries')
     // 无槽席位的窗口级模块(dropzone/preview/history-cards/intake)经
     // 模块级 tr() 取词:bind 的 t 调用时读当前语言。
     setBoundT(locale.bind(NS))
@@ -131,12 +131,12 @@ export async function apply(ctx: ClientContext): Promise<void> {
     }, UploadDock))
   })
 
-  ctx.effect(() => installHistoryCards(), 'dsh-attachment: history attachment cards')
+  ctx.effect(() => installHistoryCards(), 'dsh-attachments: history attachment cards')
   ctx.effect(() => installDropzone({
     store,
     runIntake: (sessionId, files, inputActions) =>
       intake(sessionId as unknown as SessionId, files, inputActions),
     restageText: (sessionId, text) =>
       restagePastedText(env, sessionId as unknown as SessionId, text),
-  }), 'dsh-attachment: window drop and paste')
+  }), 'dsh-attachments: window drop and paste')
 }

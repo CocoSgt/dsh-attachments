@@ -91,7 +91,7 @@ export async function runIntake(
         return
       }
     }
-    console[level === 'error' ? 'error' : 'log'](`[dsh-attachment] ${text}`)
+    console[level === 'error' ? 'error' : 'log'](`[dsh-attachments] ${text}`)
   }
 
   const batch = [...files]

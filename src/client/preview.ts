@@ -41,7 +41,7 @@ export function showPreview(env: PreviewEnv, relPath: string, name: string, refe
   document.querySelector('.dat-preview')?.remove()
   const overlay = document.createElement('div')
   overlay.className = 'dat-preview'
-  overlay.dataset.plugin = 'dsh-attachment'
+  overlay.dataset.plugin = 'dsh-attachments'
   const panel = document.createElement('div')
   panel.className = 'dat-preview-panel'
   const head = document.createElement('div')
