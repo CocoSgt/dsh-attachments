@@ -27,8 +27,10 @@ Stashed files render as cards above the composer (`conversation.input.dock`): ex
 ## Install
 
 ```sh
-dsh plugin --profile web add /path/to/dsh-attachments
+dsh plugin --profile web add dsh-attachments
 ```
+
+Or from GitHub: `dsh plugin --profile web add github:CocoSgt/dsh-attachments`.
 
 Restart `dsh web` afterwards. Uninstall: `dsh plugin --profile web remove dsh-attachments`.
 

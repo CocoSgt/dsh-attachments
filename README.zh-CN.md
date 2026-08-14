@@ -58,8 +58,10 @@ DeepSeek Harness(dsh)的第三方附件插件:**把任何文件带进会话,零�
 ## 安装
 
 ```sh
-dsh plugin --profile web add /path/to/dsh-attachments
+dsh plugin --profile web add dsh-attachments
 ```
+
+或从 GitHub 安装:`dsh plugin --profile web add github:CocoSgt/dsh-attachments`。
 
 安装后重启 `dsh web`。卸载:`dsh plugin --profile web remove dsh-attachments`。
 
